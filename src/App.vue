@@ -49,7 +49,7 @@
       <template v-if="tickers.length != 0">
         <hr class="w-full border-t border-gray-600 my-4" />
         <dl class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
-          <div @click="sel = t" v-for="t in tickers" :key="t.name" :class="{
+          <div @click="select(t)" v-for="t in tickers" :key="t.name" :class="{
             'border-4': sel === t
           }" class="bg-white overflow-hidden shadow rounded-lg border-purple-800 border-solid cursor-pointer">
             <div class="px-4 py-5 sm:p-6 text-center">
@@ -80,10 +80,9 @@
           {{ sel.name }} - USD
         </h3>
         <div class="flex items-end border-gray-600 border-b border-l h-64">
-          <div class="bg-purple-800 border w-10 h-24"></div>
-          <div class="bg-purple-800 border w-10 h-32"></div>
-          <div class="bg-purple-800 border w-10 h-48"></div>
-          <div class="bg-purple-800 border w-10 h-16"></div>
+          <div v-for="(bar, idx) in normalizeGraph()" :key="idx" :style="{ height: `${bar}%` }"
+            class="bg-purple-800 border w-10">
+          </div>
         </div>
         <button @click="sel = null" type="button" class="absolute top-0 right-0">
           <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
@@ -102,29 +101,34 @@
 </template>
 
 <script>
-
 export default {
   name: 'App',
 
   data() {
     return {
       ticker: null,
-      tickers: [
-        { name: 'BTC', price: '350$' },
-        { name: 'DOGE', price: '71$' },
-        { name: 'ETH', price: '121$' },
-      ],
+      tickers: [],
       sel: null,
-      bool: true
+      bool: true,
+      graph: []
     }
   },
   methods: {
     add() {
-      this.ticker = {
+      const currentTicker = {
         name: this.ticker,
         price: '-'
       }
-      this.tickers.push(this.ticker)
+      this.tickers.push(currentTicker)
+
+      setInterval(async () => {
+        const f = await fetch(`https://min-api.cryptocompare.com/data/price?fsym=${currentTicker.name}&tsyms=USD&api_key=266615ef42e42c54a68c2ba23b5c62346059d3c529db11afbddf53180c19fc3b`)
+        const data = await f.json()
+        this.tickers.find(t => t.name === currentTicker.name).price = data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2)
+        if (this.sel?.name === currentTicker.name) {
+          this.graph.push(data.USD)
+        }
+      }, 3000)
       this.ticker = ''
     },
     deleteTicker(tickerToRemove) {
@@ -135,6 +139,15 @@ export default {
         return el.name === this.ticker
       })
       return c.length
+    },
+    normalizeGraph() {
+      const maxValu = Math.max(...this.graph)
+      const minValu = Math.min(...this.graph)
+      return this.graph.map(price => 5 + ((price - minValu) * 95) / (maxValu - minValu))
+    },
+    select(ticker) {
+      this.sel = ticker
+      this.graph = []
     }
   },
   mounted() {

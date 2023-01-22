@@ -30,11 +30,14 @@
                 CHD
               </span>
             </div>
-            <div class="text-sm text-red-600">Такой тикер уже добавлен</div>
+            <div v-if="getRedErr()" class=" text-sm text-red-600">Такой тикер уже добавлен
+            </div>
           </div>
         </div>
-        <button @click="add" type="button"
-          class="my-4 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+        <button @click="add" type="button" class="my-4 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4
+          font-medium
+          rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none
+          focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
           <!-- Heroicon name: solid/mail -->
           <svg class="-ml-0.5 mr-2 h-6 w-6" xmlns="http://www.w3.org/2000/svg" width="30" height="30"
             viewBox="0 0 24 24" fill="#ffffff">
@@ -109,36 +112,37 @@ export default {
       ticker: null,
       tickers: [],
       sel: null,
-      bool: true,
-      graph: []
+      graph: [],
     }
   },
   methods: {
     add() {
-      const currentTicker = {
-        name: this.ticker,
-        price: '-'
-      }
-      this.tickers.push(currentTicker)
-
-      setInterval(async () => {
-        const f = await fetch(`https://min-api.cryptocompare.com/data/price?fsym=${currentTicker.name}&tsyms=USD&api_key=266615ef42e42c54a68c2ba23b5c62346059d3c529db11afbddf53180c19fc3b`)
-        const data = await f.json()
-        this.tickers.find(t => t.name === currentTicker.name).price = data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2)
-        if (this.sel?.name === currentTicker.name) {
-          this.graph.push(data.USD)
+      if (this.getRedErr() === false) {
+        const currentTicker = {
+          name: this.ticker,
+          price: '-'
         }
-      }, 3000)
-      this.ticker = ''
+        this.tickers.push(currentTicker)
+
+        setInterval(async () => {
+          const f = await fetch(`https://min-api.cryptocompare.com/data/price?fsym=${currentTicker.name}&tsyms=USD&api_key=266615ef42e42c54a68c2ba23b5c62346059d3c529db11afbddf53180c19fc3b`)
+          const data = await f.json()
+          this.tickers.find(t => t.name === currentTicker.name).price = data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2)
+          if (this.sel?.name === currentTicker.name) {
+            this.graph.push(data.USD)
+          }
+        }, 3000)
+        this.ticker = ''
+      } else {
+        return false
+      }
     },
     deleteTicker(tickerToRemove) {
       this.tickers = this.tickers.filter(t => t !== tickerToRemove)
     },
-    comparison() {
-      const c = this.tickers.filter((el) => {
-        return el.name === this.ticker
-      })
-      return c.length
+    getRedErr() {
+      const getTrueOrFalse = this.tickers.some(el => el.name.toLowerCase() === this.ticker.toLowerCase())
+      return getTrueOrFalse
     },
     normalizeGraph() {
       const maxValu = Math.max(...this.graph)

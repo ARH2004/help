@@ -12,14 +12,12 @@
                 class="block w-full pr-10 border-gray-300 text-gray-900 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm rounded-md"
                 placeholder="Например DOGE" />
             </div>
-            <!-- v-for="(j, idx) in runningArray" :key="idx" -->
-            <div class="flex bg-white shadow-md p-1 rounded-md shadow-md flex-wrap">
+            <!-- <div class="flex bg-white shadow-md p-1 rounded-md shadow-md flex-wrap">
               <span
                 class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer">
-                <!-- {{ j }} -->
                 BTC
               </span>
-            </div>
+            </div> -->
             <div v-if="getRedErr()" class=" text-sm text-red-600">Такой тикер уже добавлен
             </div>
           </div>
@@ -40,9 +38,22 @@
       </section>
 
       <template v-if="tickers.length != 0">
+        <div>
+          <button @click="page = page - 1" v-if="page > 1" type="button" class="my-4 mx-5 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4
+          font-medium
+          rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none
+          focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">Назад</button>
+          <button @click="page = page + 1" v-if="hasNextPage" type="button" class="my-4 mx-5 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4
+          font-medium
+          rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none
+          focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">Вперед</button>
+          <div>фильтр:
+            <input v-model="filter" />
+          </div>
+        </div>
         <hr class="w-full border-t border-gray-600 my-4" />
         <dl class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
-          <div @click="select(t)" v-for="t in tickers" :key="t.name" :class="{
+          <div @click="select(t)" v-for="t in filteredTickers()" :key="t.name" :class="{
             'border-4': sel === t
           }" class="bg-white overflow-hidden shadow rounded-lg border-purple-800 border-solid cursor-pointer">
             <div class="px-4 py-5 sm:p-6 text-center">
@@ -103,36 +114,75 @@ export default {
       tickers: [],
       sel: null,
       graph: [],
-      runningArray: []
+      runningArray: [],
+      page: 1,
+      filter: '',
+      hasNextPage: true,
     }
   },
+
+  created() {
+    const windowData = Object.fromEntries(new URL(window.location).searchParams.entries())
+    if (windowData.filter) {
+      this.filter = windowData.filter
+    } else if (windowData.page) {
+      this.page = windowData.page
+    }
+    const tickersData = localStorage.getItem("practic-one")
+    if (tickersData) {
+      this.tickers = JSON.parse(tickersData)
+      this.tickers.forEach(ticekr => {
+        this.subscriptionForUpdates(ticekr.name)
+      })
+    }
+  },
+
   methods: {
+    subscriptionForUpdates(tickerName) {
+      localStorage.setItem("practic-one", JSON.stringify(this.tickers))
+
+      setInterval(async () => {
+        const f = await fetch(`https://min-api.cryptocompare.com/data/price?fsym=${tickerName}&tsyms=USD&api_key=266615ef42e42c54a68c2ba23b5c62346059d3c529db11afbddf53180c19fc3b`)
+        const data = await f.json()
+        try {
+          this.tickers.find(t => t.name === tickerName).price = data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2)
+        } catch (error) {
+          console.error(error)
+        }
+        if (this.sel?.name === tickerName) {
+          this.graph.push(data.USD)
+        }
+      }, 3000)
+      this.ticker = ''
+      this.filter = ''
+    },
+    filteredTickers() {
+      const start = (this.page - 1) * 6
+      const end = (this.page * 6)
+      const filteredTickers = this.tickers.filter(ticker => ticker.name.includes(this.filter))
+      this.hasNextPage = filteredTickers.length > end
+      return filteredTickers.slice(start, end)
+    },
     add() {
       if (this.getRedErr() === false) {
         const currentTicker = {
           name: this.ticker,
           price: '-'
         }
+        this.subscriptionForUpdates(currentTicker.name)
+
         this.tickers.push(currentTicker)
 
-        setInterval(async () => {
-          const f = await fetch(`https://min-api.cryptocompare.com/data/price?fsym=${currentTicker.name}&tsyms=USD&api_key=266615ef42e42c54a68c2ba23b5c62346059d3c529db11afbddf53180c19fc3b`)
-          const data = await f.json()
-          this.tickers.find(t => t.name === currentTicker.name).price = data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2)
-          if (this.sel?.name === currentTicker.name) {
-            this.graph.push(data.USD)
-          }
-        }, 3000)
-        this.ticker = ''
       } else {
         return false
+
       }
     },
     deleteTicker(tickerToRemove) {
       this.tickers = this.tickers.filter(t => t !== tickerToRemove)
     },
     getRedErr() {
-      const getTrueOrFalse = this.tickers.some(el => el.name.toLowerCase() === this.ticker.toLowerCase())
+      const getTrueOrFalse = this.tickers.some(el => el.name?.toLowerCase() === this.ticker?.toLowerCase())
       return getTrueOrFalse
     },
     normalizeGraph() {
@@ -144,15 +194,23 @@ export default {
       this.sel = ticker
       this.graph = []
     },
-    async dynamicHint() {
-      const func = await fetch(`https://min-api.cryptocompare.com/data/all/coinlist?summary=true`)
-      const data = await func.json()
-      const f = Object.values(data.Data).map(({ Symbol }) => Symbol)
-      const filters = f.filter(el => el === this.ticker)
-      const k = this.runningArray.push(filters)
-      return k
-    }
+    // async dynamicHint() {
+    //   const func = await fetch(`https://min-api.cryptocompare.com/data/all/coinlist?summary=true`)
+    //   const data = await func.json()
+    //   Получаем список монет
+    //   const f = Object.values(data.Data).map(({ Symbol }) => Symbol)
+    //   const filters = f.filter(el => el === this.ticker)
+    //   const k = this.runningArray.push(f)
+    //   console.log(this.runningArray)
+    //   return k
+    // }
   },
+  watch: {
+    filter() {
+      this.page = 1
+      window.history.pushState(null, document.title, `${window.location.pathname} ? filter = ${this.filter}&page=${this.page}`)
+    },
+  }
 }
 </script>
 

@@ -1,7 +1,6 @@
 <template>
   <div class="container mx-auto flex flex-col items-center bg-gray-100 p-4">
     <div class="container">
-      <div class="w-full my-4"></div>
       <section>
         <div class="flex">
           <div class="max-w-xs">
@@ -11,8 +10,13 @@
                 class="block w-full pr-10 border-gray-300 text-gray-900 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm rounded-md"
                 placeholder="Например DOGE" />
             </div>
-            <div v-if="getRedErr()" class=" text-sm text-red-600">Такой тикер уже добавлен
+            <div v-if="ticker" class="flex bg-white shadow-md p-1 rounded-md shadow-md flex-wrap">
+              <span v-for="t in autoComplete()" :key="t.name"
+                class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer">
+                {{ t.name }}
+              </span>
             </div>
+            <div v-if="getRedErr()" class="text-sm text-red-600">Такой тикер уже добавлен</div>
           </div>
         </div>
         <button @click="add" type="button"
@@ -122,6 +126,12 @@ export default {
       selectedTicker: null,
 
       graph: [],
+      array: [
+        { name: 'BTC' },
+        { name: 'DOGE' },
+        { name: 'BTH' },
+        { name: 'ETH' },
+      ],
 
       page: 1
     };
@@ -201,6 +211,9 @@ export default {
   },
 
   methods: {
+    autoComplete() {
+      return this.array.filter(el => el.name.includes(this.ticker))
+    },
     subscribeToUpdates(tickerName) {
       setInterval(async () => {
         const f = await fetch(
@@ -218,20 +231,24 @@ export default {
       }, 5000);
       this.ticker = "";
     },
-    getRedErr() {
-      const getTrueOrFalse = this.tickers.some(el => el.name?.toLowerCase() === this.ticker?.toLowerCase())
-      return getTrueOrFalse
-    },
+
     add() {
       const currentTicker = {
         name: this.ticker,
         price: "-"
       };
-
-      this.tickers = [...this.tickers, currentTicker];
-      this.filter = "";
+      if (this.getRedErr() === false) {
+        this.tickers = [...this.tickers, currentTicker];
+        this.filter = "";
+      } else {
+        this.ticker = false
+      }
 
       this.subscribeToUpdates(currentTicker.name);
+    },
+
+    getRedErr() {
+      return this.tickers.some(el => el.name?.toLowerCase() === this.ticker?.toLowerCase())
     },
 
     select(ticker) {

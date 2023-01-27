@@ -109,10 +109,11 @@
 // [ ] 9. localStorage и анонимные вкладки | Критичность: 3
 // [ ] 7. График ужасно выглядит если будет много цен | Критичность: 2
 // [ ] 10. Магические строки и числа (URL, 5000 миллисекунд задержки, ключ локал стораджа, количество на странице) |  Критичность: 1
-
 // Параллельно
 // [x] График сломан если везде одинаковые значения
 // [x] При удалении тикера остается выбор
+
+import { subscribeToTicker, unsubscribeFromTicker } from "./api";
 
 export default {
   name: "App",
@@ -124,14 +125,14 @@ export default {
 
       tickers: [],
       selectedTicker: null,
-
-      graph: [],
       array: [
         { name: 'BTC' },
         { name: 'DOGE' },
-        { name: 'BTH' },
         { name: 'ETH' },
+        { name: 'BCH' },
       ],
+
+      graph: [],
 
       page: 1
     };
@@ -163,9 +164,13 @@ export default {
     if (tickersData) {
       this.tickers = JSON.parse(tickersData);
       this.tickers.forEach(ticker => {
-        this.subscribeToUpdates(ticker.name);
+        subscribeToTicker(ticker.name, newPrice =>
+          this.updateTicker(ticker.name, newPrice)
+        );
       });
     }
+
+    setInterval(this.updateTickers, 5000);
   },
 
   computed: {
@@ -211,44 +216,45 @@ export default {
   },
 
   methods: {
+    updateTicker(tickerName, price) {
+      this.tickers
+        .filter(t => t.name === tickerName)
+        .forEach(t => {
+          if (t === this.selectedTicker) {
+            this.graph.push(price);
+          }
+          t.price = price;
+        });
+    },
+    getRedErr() {
+      return this.tickers.some(el => el.name?.toLowerCase() === this.ticker?.toLowerCase())
+    },
     autoComplete() {
       return this.array.filter(el => el.name.includes(this.ticker))
     },
-    subscribeToUpdates(tickerName) {
-      setInterval(async () => {
-        const f = await fetch(
-          `https://min-api.cryptocompare.com/data/price?fsym=${tickerName}&tsyms=USD&api_key=ce3fd966e7a1d10d65f907b20bf000552158fd3ed1bd614110baa0ac6cb57a7e`
-        );
-        const data = await f.json();
-
-        // currentTicker.price =  data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
-        this.tickers.find(t => t.name === tickerName).price =
-          data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
-
-        if (this.selectedTicker?.name === tickerName) {
-          this.graph.push(data.USD);
-        }
-      }, 5000);
-      this.ticker = "";
+    formatPrice(price) {
+      if (price === "-") {
+        return price;
+      }
+      return price > 1 ? price.toFixed(2) : price.toPrecision(2);
     },
 
     add() {
-      const currentTicker = {
-        name: this.ticker,
-        price: "-"
-      };
       if (this.getRedErr() === false) {
+        const currentTicker = {
+          name: this.ticker,
+          price: "-"
+        };
+
         this.tickers = [...this.tickers, currentTicker];
+        this.ticker = "";
         this.filter = "";
+        subscribeToTicker(currentTicker.name, newPrice =>
+          this.updateTicker(currentTicker.name, newPrice)
+        );
       } else {
         this.ticker = false
       }
-
-      this.subscribeToUpdates(currentTicker.name);
-    },
-
-    getRedErr() {
-      return this.tickers.some(el => el.name?.toLowerCase() === this.ticker?.toLowerCase())
     },
 
     select(ticker) {
@@ -261,6 +267,7 @@ export default {
       if (this.selectedTicker === tickerToRemove) {
         this.selectedTicker = null;
       }
+      unsubscribeFromTicker(tickerToRemove.name);
     }
   },
 
@@ -294,5 +301,6 @@ export default {
     }
   }
 };
+
 </script>
 
